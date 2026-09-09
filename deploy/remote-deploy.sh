@@ -10,6 +10,7 @@ fi
 deploy_base="${CQAI_DEPLOY_BASE:-/data/cqai-club-portal}"
 environment_file="${CQAI_ENV_FILE:-/data/informationCollection/.env}"
 database_file="${CQAI_DB_FILE:-/data/informationCollection/prisma/dev.db}"
+storage_directory="${CQAI_STORAGE_DIR:-$deploy_base/storage}"
 archive_file="$deploy_base/incoming/$release_sha.tgz"
 release_directory="$deploy_base/releases/$release_sha"
 backup_directory="$deploy_base/backups"
@@ -22,7 +23,12 @@ candidate_container="cqai-club-portal-candidate-${release_sha:0:12}"
 candidate_directory="$temporary_directory/candidate-${release_sha:0:12}"
 candidate_database="$candidate_directory/dev.db"
 
-mkdir -p "$deploy_base/incoming" "$deploy_base/releases" "$backup_directory" "$temporary_directory"
+mkdir -p \
+  "$deploy_base/incoming" \
+  "$deploy_base/releases" \
+  "$backup_directory" \
+  "$temporary_directory" \
+  "$storage_directory/uploads/collection"
 
 exec 9>"$deploy_base/deploy.lock"
 if ! flock -n 9; then
@@ -47,6 +53,10 @@ cleanup_candidate() {
     "${candidate_database}-journal" \
     "${candidate_database}-wal" \
     "${candidate_database}-shm"
+  rmdir \
+    "$candidate_directory/storage/uploads/collection" \
+    "$candidate_directory/storage/uploads" \
+    "$candidate_directory/storage" >/dev/null 2>&1 || true
   rmdir "$candidate_directory" >/dev/null 2>&1 || true
 }
 trap cleanup_candidate EXIT
@@ -76,6 +86,7 @@ docker build --pull=false --tag "$image_name" "$release_directory"
 
 cleanup_candidate
 mkdir -p "$candidate_directory"
+mkdir -p "$candidate_directory/storage/uploads/collection"
 backup_database "$candidate_database"
 
 docker run -d \
@@ -84,6 +95,7 @@ docker run -d \
   --env DATABASE_URL=file:/data/dev.db \
   --publish 127.0.0.1::3000 \
   --volume "$candidate_directory:/data" \
+  --volume "$candidate_directory/storage:/app/storage" \
   "$image_name" >/dev/null
 
 candidate_port="$(docker port "$candidate_container" 3000/tcp | sed -n 's/.*:\([0-9][0-9]*\)$/\1/p' | head -1)"
@@ -95,7 +107,7 @@ fi
 
 candidate_ready=false
 for _ in $(seq 1 60); do
-  if curl -fsS "http://127.0.0.1:$candidate_port/health" >/dev/null \
+  if curl -fsS "http://127.0.0.1:$candidate_port/api/health" >/dev/null \
     && url_contains "http://127.0.0.1:$candidate_port/" '重庆AI创享俱乐部' \
     && url_contains "http://127.0.0.1:$candidate_port/apply/" '入会申请' \
     && url_contains "http://127.0.0.1:$candidate_port/admin/" '管理后台登录'; then
@@ -187,13 +199,14 @@ if ! docker run -d \
   --env DATABASE_URL=file:/data/dev.db \
   --publish 127.0.0.1:3000:3000 \
   --volume "$(dirname "$database_file"):/data" \
+  --volume "$storage_directory:/app/storage" \
   "$image_name" >/dev/null; then
   exit 8
 fi
 
 production_ready=false
 for _ in $(seq 1 60); do
-  if curl -fsS http://127.0.0.1:3000/health >/dev/null \
+  if curl -fsS http://127.0.0.1:3000/api/health >/dev/null \
     && url_contains http://127.0.0.1:3000/ '重庆AI创享俱乐部' \
     && url_contains http://127.0.0.1:3000/apply/ '入会申请' \
     && url_contains http://127.0.0.1:3000/admin/ '管理后台登录'; then

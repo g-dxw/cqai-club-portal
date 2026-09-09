@@ -14,7 +14,7 @@ const adminPassword = 'ci-password-for-tests-only';
 let applicationProcess;
 
 const checkWebsiteAssets = () => {
-  const websiteRoot = path.join(projectRoot, 'web');
+  const websiteRoot = path.join(projectRoot, 'site');
   const entryFile = path.join(websiteRoot, 'index.html');
   assert.ok(fs.existsSync(entryFile), 'official website entry should exist');
 
@@ -44,7 +44,7 @@ const checkWebsiteAssets = () => {
     const assetPath = path.resolve(websiteRoot, relativePath);
     assert.ok(
       assetPath.startsWith(`${websiteRoot}${path.sep}`),
-      `website asset should remain inside web/: ${reference}`
+      `website asset should remain inside site/: ${reference}`
     );
     assert.ok(fs.existsSync(assetPath), `website asset should exist: ${reference}`);
   }
@@ -135,13 +135,21 @@ const main = async () => {
     ...process.env,
     DATABASE_URL: `file:${databasePath}`,
     PORT: String(port),
+    HOSTNAME: '127.0.0.1',
+    CONFIG_DIR: path.join(projectRoot, 'deploy'),
     ADMIN_USERNAME: adminUsername,
     ADMIN_PASSWORD: adminPassword
   };
 
   await prepareDatabase(env.DATABASE_URL);
 
-  applicationProcess = spawn(process.execPath, ['index.js'], {
+  // The application is a Next.js `output: 'standalone'` build. The CI runner
+  // produces that build in a prior step; the server is the standalone
+  // server.js (reads ./site and ./storage relative to process.cwd()).
+  const serverScript = path.join(projectRoot, '.next', 'standalone', 'server.js');
+  assert.ok(fs.existsSync(serverScript), 'standalone server.js should exist (build it first)');
+
+  applicationProcess = spawn(process.execPath, [serverScript], {
     cwd: projectRoot,
     env,
     stdio: ['ignore', 'pipe', 'pipe']
@@ -153,7 +161,7 @@ const main = async () => {
 
   await waitForServer(baseUrl);
 
-  const health = await request(baseUrl, '/health');
+  const health = await request(baseUrl, '/api/health');
   assert.equal(health.response.status, 200, 'health endpoint should load');
   assert.deepEqual(JSON.parse(health.body), { status: 'ok' });
 

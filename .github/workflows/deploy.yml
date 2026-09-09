@@ -84,7 +84,7 @@ jobs:
       - name: Verify production
         run: |
           curl --fail --silent --show-error --retry 12 --retry-delay 5 \
-            https://cqaiclub.asia/health
+            https://cqaiclub.asia/api/health
           curl --fail --silent --show-error --retry 5 --retry-delay 3 \
             --output "$RUNNER_TEMP/portal.html" https://cqaiclub.asia/
           grep -q '重庆AI创享俱乐部' "$RUNNER_TEMP/portal.html"
@@ -96,3 +96,6 @@ jobs:
           grep -q '管理后台登录' "$RUNNER_TEMP/admin.html"
           test "$(curl --silent --output /dev/null --write-out '%{http_code}' \
             https://cqaiclub.asia/api/admin/members)" = '401'
+          member_login_status="$(curl --silent --output /dev/null --write-out '%{http_code}' \
+            https://cqaiclub.asia/member/login)"
+          test "$member_login_status" = '307' || test "$member_login_status" = '302'
