@@ -180,12 +180,19 @@ const main = async () => {
   assert.match(applicationPage.body, /rel=["']icon["'][^>]+href=["']\/images\/logo-nav\.png["']/);
   assert.match(applicationPage.body, /href=["']\/["']>← 返回俱乐部官网/);
 
-  const adminPage = await request(baseUrl, '/admin/');
-  assert.equal(adminPage.response.status, 200, 'admin page should load');
-  assert.match(adminPage.body, /rel=["']icon["'][^>]+href=["']\/images\/logo-nav\.png["']/);
+  const legacyAdminPage = await request(baseUrl, '/admin/', { redirect: 'manual' });
+  assert.equal(legacyAdminPage.response.status, 307, 'legacy admin URL should redirect');
+  assert.equal(
+    new URL(legacyAdminPage.response.headers.get('location'), baseUrl).pathname,
+    '/member/dashboard/admin/members'
+  );
 
-  const legacyAdminPage = await request(baseUrl, '/admin.html');
-  assert.equal(legacyAdminPage.response.status, 200, 'legacy admin URL should remain compatible');
+  const legacyCollectionsPage = await request(baseUrl, '/collection-admin.html', { redirect: 'manual' });
+  assert.equal(legacyCollectionsPage.response.status, 307, 'legacy collections URL should redirect');
+  assert.equal(
+    new URL(legacyCollectionsPage.response.headers.get('location'), baseUrl).pathname,
+    '/member/dashboard/admin/collections'
+  );
 
   const unauthorizedMembers = await request(baseUrl, '/api/admin/members');
   assert.equal(unauthorizedMembers.response.status, 401, 'admin API should reject anonymous access');

@@ -94,9 +94,18 @@ jobs:
           curl --fail --silent --show-error --retry 5 --retry-delay 3 \
             --output "$RUNNER_TEMP/apply.html" https://cqaiclub.asia/apply/
           grep -q '入会申请' "$RUNNER_TEMP/apply.html"
-          curl --fail --silent --show-error --retry 5 --retry-delay 3 \
-            --output "$RUNNER_TEMP/admin.html" https://cqaiclub.asia/admin/
-          grep -q '管理后台登录' "$RUNNER_TEMP/admin.html"
+          legacy_admin_location="$(curl --silent --show-error --dump-header - --output /dev/null \
+            https://cqaiclub.asia/admin/ | awk 'tolower($1) == "location:" {print $2}' | tr -d '\r')"
+          case "$legacy_admin_location" in
+            */member/dashboard/admin/members) ;;
+            *) echo "Unexpected legacy admin redirect: $legacy_admin_location"; exit 1 ;;
+          esac
+          legacy_collections_location="$(curl --silent --show-error --dump-header - --output /dev/null \
+            https://cqaiclub.asia/collection-admin.html | awk 'tolower($1) == "location:" {print $2}' | tr -d '\r')"
+          case "$legacy_collections_location" in
+            */member/dashboard/admin/collections) ;;
+            *) echo "Unexpected legacy collections redirect: $legacy_collections_location"; exit 1 ;;
+          esac
           test "$(curl --silent --output /dev/null --write-out '%{http_code}' \
             https://cqaiclub.asia/api/admin/members)" = '401'
           member_login_status="$(curl --silent --output /dev/null --write-out '%{http_code}' \

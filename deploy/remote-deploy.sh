@@ -76,6 +76,14 @@ url_contains() {
   [[ "$response_body" == *"$expected_text"* ]]
 }
 
+url_redirects_to() {
+  local url="$1"
+  local expected_path="$2"
+  local response_headers
+  response_headers="$(curl -sS -D - -o /dev/null "$url")" || return 1
+  grep -Fqi "location:" <<< "$response_headers" && grep -Fq "$expected_path" <<< "$response_headers"
+}
+
 if [[ ! -d "$release_directory" ]]; then
   mkdir -p "$release_directory"
   tar -xzf "$archive_file" -C "$release_directory"
@@ -112,7 +120,8 @@ for _ in $(seq 1 60); do
   if curl -fsS "http://127.0.0.1:$candidate_port/api/health" >/dev/null \
     && url_contains "http://127.0.0.1:$candidate_port/" '重庆AI创享俱乐部' \
     && url_contains "http://127.0.0.1:$candidate_port/apply/" '入会申请' \
-    && url_contains "http://127.0.0.1:$candidate_port/admin/" '管理后台登录'; then
+    && url_redirects_to "http://127.0.0.1:$candidate_port/admin/" '/member/dashboard/admin/members' \
+    && url_redirects_to "http://127.0.0.1:$candidate_port/collection-admin.html" '/member/dashboard/admin/collections'; then
     candidate_ready=true
     break
   fi
@@ -213,7 +222,8 @@ for _ in $(seq 1 60); do
   if curl -fsS http://127.0.0.1:3000/api/health >/dev/null \
     && url_contains http://127.0.0.1:3000/ '重庆AI创享俱乐部' \
     && url_contains http://127.0.0.1:3000/apply/ '入会申请' \
-    && url_contains http://127.0.0.1:3000/admin/ '管理后台登录'; then
+    && url_redirects_to http://127.0.0.1:3000/admin/ '/member/dashboard/admin/members' \
+    && url_redirects_to http://127.0.0.1:3000/collection-admin.html '/member/dashboard/admin/collections'; then
     production_ready=true
     break
   fi
