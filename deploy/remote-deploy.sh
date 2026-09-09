@@ -93,14 +93,16 @@ docker run -d \
   --name "$candidate_container" \
   --env-file "$environment_file" \
   --env DATABASE_URL=file:/data/dev.db \
+  --env CONFIG_DIR=/app/deploy \
   --publish 127.0.0.1::3000 \
   --volume "$candidate_directory:/data" \
   --volume "$candidate_directory/storage:/app/storage" \
   "$image_name" >/dev/null
 
-candidate_port="$(docker port "$candidate_container" 3000/tcp | sed -n 's/.*:\([0-9][0-9]*\)$/\1/p' | head -1)"
+candidate_port="$(docker port "$candidate_container" 3000/tcp 2>/dev/null | sed -n 's/.*:\([0-9][0-9]*\)$/\1/p' | head -1 || true)"
 if [[ -z "$candidate_port" ]]; then
   echo "Could not determine candidate port."
+  docker inspect "$candidate_container" --format 'status={{.State.Status}} exit={{.State.ExitCode}} error={{.State.Error}}' || true
   docker logs "$candidate_container" --tail 100 || true
   exit 5
 fi
@@ -197,6 +199,7 @@ if ! docker run -d \
   --restart unless-stopped \
   --env-file "$environment_file" \
   --env DATABASE_URL=file:/data/dev.db \
+  --env CONFIG_DIR=/app/deploy \
   --publish 127.0.0.1:3000:3000 \
   --volume "$(dirname "$database_file"):/data" \
   --volume "$storage_directory:/app/storage" \
