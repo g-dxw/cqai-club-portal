@@ -12,7 +12,8 @@
     "lint": "eslint",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate deploy",
-    "test": "npm run build && node scripts/ci-smoke-test.js"
+    "test:deployment": "node scripts/deployment-safety-test.js",
+    "test": "npm run build && npm run test:deployment && node scripts/ci-smoke-test.js"
   },
   "dependencies": {
     "@logto/api": "^1.43.0",
