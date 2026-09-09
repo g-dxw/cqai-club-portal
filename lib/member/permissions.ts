@@ -31,7 +31,21 @@ export function hasMemberAdminPermission(
  * The old standalone admin token remains supported for the legacy /admin UI.
  */
 export async function requireMemberAdminPermission(): Promise<NextResponse | null> {
-  const { isAuthenticated, claims } = await getLogtoContext();
+  let context;
+
+  try {
+    context = await getLogtoContext();
+  } catch (error) {
+    // A missing or temporarily unavailable Logto configuration must not turn
+    // an anonymous authorization check into a 500 response. Fail closed.
+    console.error("Member-center authorization check failed:", error);
+    return NextResponse.json(
+      { error: "请先登录会员中心。" },
+      { status: 401 }
+    );
+  }
+
+  const { isAuthenticated, claims } = context;
 
   if (!isAuthenticated) {
     return NextResponse.json(
