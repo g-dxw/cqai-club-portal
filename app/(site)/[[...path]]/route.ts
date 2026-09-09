@@ -75,7 +75,12 @@ export async function GET(
 
   const legacyAdminTarget = LEGACY_ADMIN_REDIRECTS[pathname];
   if (legacyAdminTarget) {
-    return NextResponse.redirect(new URL(legacyAdminTarget, request.url), 307);
+    // Use a relative Location so reverse proxies cannot leak the container's
+    // internal hostname and port into the public redirect URL.
+    return new NextResponse(null, {
+      status: 307,
+      headers: { Location: legacyAdminTarget },
+    });
   }
 
   // Directory-style URL (no extension, or the root) maps to
