@@ -69,15 +69,18 @@ jobs:
       - name: Upload release
         run: |
           scp -i "$HOME/.ssh/id_ed25519" -o BatchMode=yes -o StrictHostKeyChecking=yes \
+            -o ServerAliveInterval=30 -o ServerAliveCountMax=20 \
             -P "$DEPLOY_PORT" "$RUNNER_TEMP/release.tgz" \
             "$DEPLOY_USER@$DEPLOY_HOST:$DEPLOY_BASE/incoming/$DEPLOY_SHA.tgz"
           scp -i "$HOME/.ssh/id_ed25519" -o BatchMode=yes -o StrictHostKeyChecking=yes \
+            -o ServerAliveInterval=30 -o ServerAliveCountMax=20 \
             -P "$DEPLOY_PORT" deploy/remote-deploy.sh \
             "$DEPLOY_USER@$DEPLOY_HOST:$DEPLOY_BASE/incoming/remote-deploy-$DEPLOY_SHA.sh"
 
       - name: Deploy with rollback protection
         run: |
           ssh -i "$HOME/.ssh/id_ed25519" -o BatchMode=yes -o StrictHostKeyChecking=yes \
+            -o ServerAliveInterval=30 -o ServerAliveCountMax=20 \
             -p "$DEPLOY_PORT" "$DEPLOY_USER@$DEPLOY_HOST" \
             "bash '$DEPLOY_BASE/incoming/remote-deploy-$DEPLOY_SHA.sh' '$DEPLOY_SHA'"
 
