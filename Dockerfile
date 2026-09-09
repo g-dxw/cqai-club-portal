@@ -38,6 +38,10 @@ COPY --from=builder /app/site ./site
 # Prisma: schema, migrations (for `prisma migrate deploy`) and the generated
 # client already traced into standalone node_modules.
 COPY --from=builder /app/prisma ./prisma
+# The standalone trace includes Prisma Client but not the Prisma CLI. Keep the
+# CLI and its engines available for the deployment-time migration step.
+COPY --from=builder /app/node_modules/prisma ./node_modules/prisma
+COPY --from=builder /app/node_modules/@prisma ./node_modules/@prisma
 
 # Runtime feature configuration consumed by the container entrypoint.
 COPY --from=builder /app/deploy ./deploy
