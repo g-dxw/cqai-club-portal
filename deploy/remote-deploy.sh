@@ -189,8 +189,9 @@ if ! docker run --rm \
   --env-file "$environment_file" \
   --env DATABASE_URL=file:/data/dev.db \
   --volume "$(dirname "$database_file"):/data" \
+  --entrypoint node \
   "$image_name" \
-  node node_modules/prisma/build/index.js migrate deploy --schema prisma/schema.prisma; then
+  node_modules/prisma/build/index.js migrate deploy --schema prisma/schema.prisma; then
   exit 7
 fi
 
