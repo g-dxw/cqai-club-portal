@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import { Sidebar } from "@/components/layout/sidebar";
 import { Navbar } from "@/components/layout/navbar";
 import { logger } from "@/lib/logger";
-import { hasMemberAdminPermission } from "@/lib/member/permissions";
+import { hasMemberAdminPermission, hasPluginAdminPermission } from "@/lib/member/permissions";
 
 export const dynamic = "force-dynamic";
 
@@ -35,7 +35,11 @@ export default async function DashboardLayout({
     email: accountInfo?.primaryEmail ?? claims?.email ?? undefined,
     avatar: accountInfo?.avatar ?? claims?.picture ?? undefined,
   };
-  const canAccessAdmin = hasMemberAdminPermission(claims);
+  const [canAccessMemberAdmin, canAccessPluginAdmin] = await Promise.all([
+    hasMemberAdminPermission(),
+    hasPluginAdminPermission(),
+  ]);
+  const canAccessAdmin = canAccessMemberAdmin || canAccessPluginAdmin;
 
   async function handleSignOut() {
     "use server";
@@ -45,11 +49,11 @@ export default async function DashboardLayout({
   return (
     <div className="min-h-screen bg-background">
       {/* Desktop Sidebar */}
-      <Sidebar canAccessAdmin={canAccessAdmin} />
+      <Sidebar canAccessAdmin={canAccessAdmin} canAccessMemberAdmin={canAccessMemberAdmin} canAccessPluginAdmin={canAccessPluginAdmin} />
 
       {/* Main Content */}
       <div className="md:pl-64">
-        <Navbar user={user} onSignOut={handleSignOut} canAccessAdmin={canAccessAdmin} />
+        <Navbar user={user} onSignOut={handleSignOut} canAccessAdmin={canAccessAdmin} canAccessMemberAdmin={canAccessMemberAdmin} canAccessPluginAdmin={canAccessPluginAdmin} />
         <main className="p-4 lg:p-8">
           <div className="mx-auto w-full max-w-7xl">{children}</div>
         </main>

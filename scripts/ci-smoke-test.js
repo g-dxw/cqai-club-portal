@@ -138,7 +138,8 @@ const main = async () => {
     HOSTNAME: '127.0.0.1',
     CONFIG_DIR: path.join(projectRoot, 'deploy'),
     ADMIN_USERNAME: adminUsername,
-    ADMIN_PASSWORD: adminPassword
+    ADMIN_PASSWORD: adminPassword,
+    BASE_URL_PROD: 'https://plugins.example.invalid'
   };
 
   await prepareDatabase(env.DATABASE_URL);
@@ -213,6 +214,121 @@ const main = async () => {
   const { token } = JSON.parse(validLogin.body);
   assert.ok(token, 'admin login should return a session token');
 
+  const resourceSessionCookie = process.env.CI_LOGTO_SESSION_COOKIE;
+
+  const catalogManifest = await request(baseUrl, '/catalog-source.json');
+  assert.equal(catalogManifest.response.status, 200, 'catalog manifest should be public');
+  const manifestPayload = JSON.parse(catalogManifest.body);
+  assert.equal(manifestPayload.manifestVersion, '1.0.0');
+  assert.equal(manifestPayload.transport.endpoint, 'https://plugins.example.invalid/v1/plugins');
+  assert.deepEqual(manifestPayload.query.supported, ['q', 'category', 'cursor', 'limit']);
+
+  const emptyCatalog = await request(baseUrl, '/v1/plugins');
+  assert.equal(emptyCatalog.response.status, 200, 'empty plugin catalog should be public');
+  assert.deepEqual(JSON.parse(emptyCatalog.body).items, []);
+
+  const authorization = resourceSessionCookie
+    ? { cookie: resourceSessionCookie }
+    : { authorization: `Bearer ${token}` };
+
+  if (!resourceSessionCookie) {
+    const legacyTokenRequest = await request(baseUrl, '/api/admin/plugins', {
+      headers: authorization
+    });
+    assert.equal(
+      legacyTokenRequest.response.status,
+      401,
+      'legacy admin tokens must not bypass Logto resource permissions'
+    );
+    console.log('Skipping authenticated plugin lifecycle: CI_LOGTO_SESSION_COOKIE is not configured.');
+  } else {
+  const pluginPayload = {
+    packageName: 'dsh-plugin-ci-market',
+    displayName: 'CI Market Plugin',
+    summary: 'A plugin used by the catalog smoke test.',
+    description: 'Smoke test detail.',
+    categories: ['testing', 'automation'],
+    keywords: ['ci', 'catalog'],
+    repositoryUrl: 'https://github.com/example/dsh-plugin-ci-market',
+    homepageUrl: 'https://example.invalid/dsh-plugin-ci-market',
+    iconUrl: 'https://images.example.invalid/plugin.png',
+    compatibilityApiVersion: '1.0',
+    compatibilityHosts: ['dsh-desktop']
+  };
+  const invalidPlugin = await request(baseUrl, '/api/admin/plugins', {
+    method: 'POST',
+    headers: { ...authorization, 'content-type': 'application/json' },
+    body: JSON.stringify({ ...pluginPayload, packageName: 'not a package name' })
+  });
+  assert.equal(invalidPlugin.response.status, 400, 'invalid plugin data should be rejected');
+
+  const draftPlugin = await request(baseUrl, '/api/admin/plugins', {
+    method: 'POST',
+    headers: { ...authorization, 'content-type': 'application/json' },
+    body: JSON.stringify(pluginPayload)
+  });
+  assert.equal(draftPlugin.response.status, 201, `draft plugin should be created: ${draftPlugin.body}`);
+  const draftPluginId = JSON.parse(draftPlugin.body).id;
+  assert.ok(draftPluginId, 'draft plugin should return an id');
+
+  const minimalPlugin = await request(baseUrl, '/api/admin/plugins', {
+    method: 'POST',
+    headers: { ...authorization, 'content-type': 'application/json' },
+    body: JSON.stringify({
+      packageName: 'dsh-plugin-ci-minimal',
+      displayName: 'CI Minimal Plugin',
+      summary: 'A plugin with optional URL fields omitted.',
+      description: '',
+      categories: [],
+      keywords: [],
+      repositoryUrl: '',
+      homepageUrl: '',
+      iconUrl: '',
+      compatibilityApiVersion: '',
+      compatibilityHosts: []
+    })
+  });
+  assert.equal(minimalPlugin.response.status, 201, `empty optional URLs should be accepted: ${minimalPlugin.body}`);
+
+  const draftCatalog = await request(baseUrl, '/v1/plugins');
+  assert.deepEqual(JSON.parse(draftCatalog.body).items, [], 'draft plugins must stay private');
+
+  const publishPlugin = await request(baseUrl, `/api/admin/plugins/${draftPluginId}/status`, {
+    method: 'PATCH',
+    headers: { ...authorization, 'content-type': 'application/json' },
+    body: JSON.stringify({ status: 'published' })
+  });
+  assert.equal(publishPlugin.response.status, 200, 'plugin should publish');
+
+  const publishedCatalog = await request(baseUrl, '/v1/plugins?q=CI%20Market&category=testing&limit=1');
+  assert.equal(publishedCatalog.response.status, 200, `published catalog should load: ${publishedCatalog.body}`);
+  const publishedPayload = JSON.parse(publishedCatalog.body);
+  assert.equal(publishedPayload.items.length, 1, 'published plugin should be discoverable');
+  assert.equal(publishedPayload.items[0].package.name, pluginPayload.packageName);
+  assert.match(publishedPayload.items[0].media.icon.url, /\/v1\/plugins\/[^/]+\/icon$/);
+  assert.equal(publishedPayload.items[0].repository.url, pluginPayload.repositoryUrl);
+
+  const pluginList = await request(baseUrl, '/api/admin/plugins?status=published', { headers: authorization });
+  assert.equal(pluginList.response.status, 200, 'published plugin admin list should load');
+  assert.equal(JSON.parse(pluginList.body).total, 1);
+
+  const updatedPlugin = await request(baseUrl, `/api/admin/plugins/${draftPluginId}`, {
+    method: 'PATCH',
+    headers: { ...authorization, 'content-type': 'application/json' },
+    body: JSON.stringify({ ...pluginPayload, displayName: 'Updated CI Market Plugin' })
+  });
+  assert.equal(updatedPlugin.response.status, 200, 'plugin should be editable');
+  assert.equal(JSON.parse(updatedPlugin.body).displayName, 'Updated CI Market Plugin');
+
+  const unpublishPlugin = await request(baseUrl, `/api/admin/plugins/${draftPluginId}/status`, {
+    method: 'PATCH',
+    headers: { ...authorization, 'content-type': 'application/json' },
+    body: JSON.stringify({ status: 'unpublished' })
+  });
+  assert.equal(unpublishPlugin.response.status, 200, 'plugin should be taken offline');
+  assert.equal(JSON.parse((await request(baseUrl, '/v1/plugins')).body).items.length, 0, 'unpublished plugins must stay private');
+  }
+
   const testPhone = ['199', '0000', '0000'].join('');
   const application = {
     name: 'CI 测试用户',
@@ -260,7 +376,7 @@ const main = async () => {
   });
   assert.equal(duplicateSubmission.response.status, 400, 'duplicate phone should be rejected');
 
-  const authorization = { authorization: `Bearer ${token}` };
+  if (resourceSessionCookie) {
   const members = await request(baseUrl, '/api/admin/members?limit=10', { headers: authorization });
   assert.equal(members.response.status, 200, `member query should succeed: ${members.body}`);
   const membersPayload = JSON.parse(members.body);
@@ -327,8 +443,23 @@ const main = async () => {
   assert.equal(collectionExport.response.status, 200, `collection CSV export should succeed: ${collectionExport.body}`);
   assert.match(collectionExport.response.headers.get('content-type') || '', /text\/csv/);
   assert.match(collectionExport.body, /CI Collection Project/);
+  } else {
+    const legacyMembersRequest = await request(baseUrl, '/api/admin/members?limit=10', {
+      headers: authorization
+    });
+    assert.equal(legacyMembersRequest.response.status, 401, 'legacy tokens must not access member admin APIs');
 
-  console.log('Smoke test passed: portal, application, admin, authentication, member and collection submissions, status updates, and CSV exports.');
+    const legacyCollectionsRequest = await request(baseUrl, '/api/admin/collection-submissions?limit=10', {
+      headers: authorization
+    });
+    assert.equal(legacyCollectionsRequest.response.status, 401, 'legacy tokens must not access collection admin APIs');
+  }
+
+  console.log(
+    resourceSessionCookie
+      ? 'Smoke test passed: portal, application, admin, authentication, member and collection submissions, status updates, and CSV exports.'
+      : 'Smoke test passed: portal, public submissions, catalog visibility, and Logto permission boundary.'
+  );
 
   if (applicationProcess.exitCode !== null && applicationProcess.exitCode !== 0) {
     throw new Error(`Application exited unexpectedly.\n${serverOutput}`);

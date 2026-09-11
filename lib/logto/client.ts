@@ -10,59 +10,39 @@ import {
   getAccessTokenRSC as _getAccessTokenRSC,
   handleSignIn as _handleSignIn,
 } from "@logto/next/server-actions";
+import { Prompt } from "@logto/next";
 
 import { logtoConfig } from "./config";
 
 type LogtoContext = Awaited<ReturnType<typeof _getLogtoContext>>;
 
-async function canFetchAccountInfo(accessToken: string): Promise<boolean> {
-  try {
-    const res = await fetch(`${logtoConfig.endpoint}/api/my-account`, {
-      method: "GET",
-      headers: {
-        authorization: `Bearer ${accessToken}`,
-      },
-      cache: "no-store",
-    });
-
-    if (res.status === 401 || res.status === 403) {
-      return false;
-    }
-
-    return true;
-  } catch {
-    // 网络抖动等场景不直接判定为未登录，避免误伤有效会话
-    return true;
-  }
-}
-
 /**
  * 获取 Logto 上下文（认证状态）
  */
-export async function getLogtoContext(): Promise<LogtoContext> {
-  const context = await _getLogtoContext(logtoConfig);
+export async function getLogtoContext(resource?: string): Promise<LogtoContext> {
+  const context = await _getLogtoContext(
+    logtoConfig,
+    resource ? { getAccessToken: true, resource } : undefined
+  );
 
   if (!context.isAuthenticated) {
     return context;
   }
 
-  const accessToken = await _getAccessTokenRSC(logtoConfig);
-  if (!accessToken) {
-    return {
-      ...context,
-      isAuthenticated: false,
-    };
+  // A resource-scoped token is used for permission checks. It is not an
+  // account API token, so do not send it to Logto's /api/my-account endpoint.
+  if (resource) {
+    if (!context.accessToken) {
+      return {
+        ...context,
+        isAuthenticated: false,
+      };
+    }
+    return context;
   }
 
-  const accountAccessible = await canFetchAccountInfo(accessToken);
-  if (!accountAccessible) {
-    return {
-      ...context,
-      isAuthenticated: false,
-      claims: undefined,
-    };
-  }
-
+  // Keep the normal page session check independent from API-resource token
+  // refreshes. Account APIs perform their own access-token validation.
   return context;
 }
 
@@ -71,7 +51,11 @@ export async function getLogtoContext(): Promise<LogtoContext> {
  * `${baseUrl}/callback`），用于把回调固定在 /member 前缀下。
  */
 export const signIn = (redirectUri?: string) =>
-  _signIn(logtoConfig, redirectUri);
+  _signIn(logtoConfig, {
+    redirectUri: redirectUri ?? `${logtoConfig.baseUrl}/callback`,
+    prompt: Prompt.Login,
+    clearTokens: true,
+  });
 
 /**
  * 登出

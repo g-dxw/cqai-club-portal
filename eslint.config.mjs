@@ -12,6 +12,7 @@ const eslintConfig = [
       "build/**",
       "scripts/dist/**",
       "scripts/ci-smoke-test.js",
+      "scripts/deployment-safety-test.js",
       "next-env.d.ts",
     ],
   },

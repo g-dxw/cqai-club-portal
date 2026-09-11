@@ -34,6 +34,8 @@ import { useTranslations } from "@/lib/i18n/client";
 
 interface NavbarProps {
   canAccessAdmin?: boolean;
+  canAccessMemberAdmin?: boolean;
+  canAccessPluginAdmin?: boolean;
   user?: {
     name?: string;
     username?: string;
@@ -43,10 +45,13 @@ interface NavbarProps {
   onSignOut?: () => void;
 }
 
-export function Navbar({ user, onSignOut, canAccessAdmin = false }: NavbarProps) {
+export function Navbar({ user, onSignOut, canAccessAdmin = false, canAccessMemberAdmin = false, canAccessPluginAdmin = false }: NavbarProps) {
   const pathname = usePathname();
   const { theme, setTheme } = useTheme();
   const { t, language } = useTranslations();
+  const visibleAdminNavItems = adminNavItems.filter(item =>
+    item.titleKey === "nav.adminPlugins" ? canAccessPluginAdmin : canAccessMemberAdmin
+  );
 
   return (
     <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
@@ -79,10 +84,10 @@ export function Navbar({ user, onSignOut, canAccessAdmin = false }: NavbarProps)
                     </Link>
                   );
                 })}
-                {canAccessAdmin && (
+                {canAccessAdmin && visibleAdminNavItems.length > 0 && (
                   <>
                     <div className="my-2 border-t" />
-                    {adminNavItems.map((item) => {
+                    {visibleAdminNavItems.map((item) => {
                       const isActive = isNavItemActive(item.href, pathname);
                       return (
                         <Link key={item.href} href={item.href}>

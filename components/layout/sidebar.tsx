@@ -16,11 +16,16 @@ import { useTranslations } from "@/lib/i18n/client";
 
 interface SidebarProps {
   canAccessAdmin?: boolean;
+  canAccessMemberAdmin?: boolean;
+  canAccessPluginAdmin?: boolean;
 }
 
-export function Sidebar({ canAccessAdmin = false }: SidebarProps) {
+export function Sidebar({ canAccessAdmin = false, canAccessMemberAdmin = false, canAccessPluginAdmin = false }: SidebarProps) {
   const pathname = usePathname();
   const { t, language } = useTranslations();
+  const visibleAdminNavItems = adminNavItems.filter(item =>
+    item.titleKey === "nav.adminPlugins" ? canAccessPluginAdmin : canAccessMemberAdmin
+  );
 
   return (
     <aside className="fixed left-0 top-0 z-40 hidden h-screen w-64 flex-col border-r bg-card md:flex">
@@ -57,10 +62,10 @@ export function Sidebar({ canAccessAdmin = false }: SidebarProps) {
             </Link>
           );
         })}
-        {canAccessAdmin && (
+        {canAccessAdmin && visibleAdminNavItems.length > 0 && (
           <>
             <div className="my-3 border-t" />
-            {adminNavItems.map((item) => {
+            {visibleAdminNavItems.map((item) => {
               const isActive = isNavItemActive(item.href, pathname);
               return (
                 <Link key={item.href} href={item.href}>

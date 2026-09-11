@@ -4,6 +4,8 @@
 
 import { LogtoNextConfig } from "@logto/next";
 
+export const CQAI_API_RESOURCE = "https://cqaiclub.asia/";
+
 /**
  * Logto SDK 配置
  */
@@ -24,8 +26,10 @@ export const logtoConfig: LogtoNextConfig = {
     "phone",
     "custom_data",
     "identities",
-    "roles",
+    "plugin:admin",
+    "member:admin",
   ],
+  resources: [CQAI_API_RESOURCE],
 };
 
 /**

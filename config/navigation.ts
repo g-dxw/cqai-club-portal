@@ -7,6 +7,7 @@ import {
   Settings,
   Users,
   Files,
+  Store,
 } from "lucide-react";
 import { t, type Language } from "@/lib/i18n";
 
@@ -62,6 +63,12 @@ export const adminNavItems: NavItem[] = [
     title: "资料征集",
     titleKey: "nav.adminCollections",
     icon: Files,
+  },
+  {
+    href: "/member/dashboard/admin/plugins",
+    title: "插件市场",
+    titleKey: "nav.adminPlugins",
+    icon: Store,
   },
 ];
 

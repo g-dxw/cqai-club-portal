@@ -63,15 +63,15 @@ export const requireAdminToken = (authorization: string): boolean =>
   isAdminTokenValid(authorization);
 
 /**
- * Accept either the legacy standalone admin token or a privileged member-center
- * Logto session. This keeps the old /admin pages working while allowing the
- * same APIs to power the migrated member-center pages.
+ * Protect an admin API with a permission scope granted on the CQAI API
+ * resource. The legacy standalone admin token is not an authorization
+ * bypass for these APIs.
  */
 export const requireAdminAccess = async (
-  authorization: string
+  _authorization: string,
+  requiredPermission?: string
 ): Promise<NextResponse | null> => {
-  if (requireAdminToken(authorization)) return null;
-  return requireMemberAdminPermission();
+  return requireMemberAdminPermission(requiredPermission);
 };
 
 // ---------------------------------------------------------------------------
