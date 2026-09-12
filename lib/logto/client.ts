@@ -13,6 +13,7 @@ import {
 import { Prompt } from "@logto/next";
 
 import { logtoConfig } from "./config";
+import { logger } from "@/lib/logger";
 
 type LogtoContext = Awaited<ReturnType<typeof _getLogtoContext>>;
 
@@ -24,6 +25,33 @@ export async function getLogtoContext(resource?: string): Promise<LogtoContext> 
     logtoConfig,
     resource ? { getAccessToken: true, resource } : undefined
   );
+
+  if (resource && !context.isAuthenticated) {
+    const sessionContext = await _getLogtoContext(logtoConfig);
+    if (sessionContext.isAuthenticated) {
+      try {
+        await _getAccessTokenRSC(logtoConfig, resource);
+        logger.error("Logto resource context failed but direct token retry succeeded", {
+          resource,
+          isAuthenticated: context.isAuthenticated,
+        });
+      } catch (error) {
+        const details = error instanceof Error
+          ? {
+              name: error.name,
+              message: error.message,
+              code: "code" in error ? error.code : undefined,
+              data: "data" in error ? error.data : undefined,
+            }
+          : { message: String(error) };
+        logger.error("Logto resource access token acquisition failed", {
+          resource,
+          isAuthenticated: context.isAuthenticated,
+          error: details,
+        });
+      }
+    }
+  }
 
   if (!context.isAuthenticated) {
     return context;
