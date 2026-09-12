@@ -1,16 +1,9 @@
-import { redirect } from "next/navigation";
 import { Button } from "@/components/ui/button";
-import { signIn, getLogtoContext, logtoConfig } from "@/lib/logto";
+import { signIn, logtoConfig } from "@/lib/logto";
 
 export const dynamic = "force-dynamic";
 
 export default async function SignInPage() {
-  const { isAuthenticated } = await getLogtoContext();
-
-  if (isAuthenticated) {
-    redirect("/member/dashboard");
-  }
-
   async function handleSignIn() {
     "use server";
     // @logto/next's signIn() defaults to `${baseUrl}/callback`, but the
