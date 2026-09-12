@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getLogtoContext } from "@/lib/logto";
 import { CQAI_API_RESOURCE } from "@/lib/logto/config";
+import { logger } from "@/lib/logger";
 
 export const PLUGIN_ADMIN_PERMISSION = "plugin:admin";
 export const MEMBER_ADMIN_PERMISSION = "member:admin";
@@ -20,7 +21,18 @@ export function hasApiPermission(
 async function hasResourcePermission(requiredPermission: string): Promise<boolean> {
   try {
     const context = await getLogtoContext(CQAI_API_RESOURCE);
-    return context.isAuthenticated && hasApiPermission(context.scopes, requiredPermission);
+    const scopes = Array.isArray(context.scopes)
+      ? context.scopes.filter((scope): scope is string => typeof scope === "string")
+      : [];
+    const granted = context.isAuthenticated && hasApiPermission(scopes, requiredPermission);
+    logger.warn("Member-center resource permission debug", {
+      resource: CQAI_API_RESOURCE,
+      requiredPermission,
+      isAuthenticated: context.isAuthenticated,
+      scopes,
+      granted,
+    });
+    return granted;
   } catch (error) {
     console.error("Member-center permission check failed:", error);
     return false;
@@ -57,13 +69,32 @@ export async function requireMemberAdminPermission(
   }
 
   if (!context.isAuthenticated) {
+    logger.warn("Member-center resource permission debug", {
+      resource: CQAI_API_RESOURCE,
+      requiredPermission,
+      isAuthenticated: false,
+      scopes: [],
+      granted: false,
+    });
     return NextResponse.json(
       { error: "请先登录会员中心。" },
       { status: 401 }
     );
   }
 
-  if (!hasApiPermission(context.scopes, requiredPermission)) {
+  const scopes = Array.isArray(context.scopes)
+    ? context.scopes.filter((scope): scope is string => typeof scope === "string")
+    : [];
+  const granted = hasApiPermission(scopes, requiredPermission);
+  logger.warn("Member-center resource permission debug", {
+    resource: CQAI_API_RESOURCE,
+    requiredPermission,
+    isAuthenticated: true,
+    scopes,
+    granted,
+  });
+
+  if (!granted) {
     return NextResponse.json(
       { error: `您没有 ${requiredPermission} 权限。` },
       { status: 403 }
